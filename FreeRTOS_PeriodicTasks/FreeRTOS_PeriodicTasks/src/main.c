@@ -19,40 +19,47 @@ typedef struct task_t {
 	uint16_t period;
 	uint16_t cpu;
 	uint16_t priority;
-	int led;
+	uint8_t led3;
+	uint8_t led4;
 } task;
-
-task tasks[] = { { "Task1", 0, 1000, 50, 1, LED3}, { "Task2", 1000, 2000, 500, 2, LED4}};
+				//	Name		Start	Period	CPU		Prio	LED3				LED4
+task tasks[] = { { "Task1", 	0, 		1000, 	400, 	1, 		GPIO_PIN_SET, 		GPIO_PIN_RESET 	},
+				 { "Task2", 	1000, 	3000, 	700, 	2, 		GPIO_PIN_RESET, 	GPIO_PIN_SET 	}
+				};
 
 uint16_t cal = 1000;
 
-void burnCPU(uint16_t ms) {
+void update_leds(uint8_t led3, uint8_t led4) {
+	HAL_GPIO_WritePin(LED3_GPIO_PORT, LED3_PIN, led3);
+	HAL_GPIO_WritePin(LED4_GPIO_PORT, LED4_PIN, led4);
+}
+
+void burnCPU(uint16_t ms, uint8_t led3, uint8_t led4) {
 	while (ms--) {
 		for (uint16_t i = 0; i < cal; i++) {
+			update_leds(led3, led4);
 			__asm("nop");
 		}
 	}
 }
 
 void vTaskCalibrateBurnCPU(void* p) {
-	BSP_LED_On(LED3);
-	BSP_LED_On(LED4);
+	update_leds(GPIO_PIN_SET, GPIO_PIN_SET);
 	TickType_t reference_ticks = 1000/portTICK_RATE_MS;
 	TickType_t mesured_ticks = xTaskGetTickCount();
-	burnCPU(reference_ticks);
+	burnCPU(reference_ticks, GPIO_PIN_SET, GPIO_PIN_SET);
 	mesured_ticks = xTaskGetTickCount() - mesured_ticks;
 	cal = cal * reference_ticks / mesured_ticks;
-	BSP_LED_Off(LED3);
-	BSP_LED_Off(LED4);
+	update_leds(GPIO_PIN_RESET, GPIO_PIN_RESET);
 	vTaskDelete(NULL);
 }
-
 
 void vTask(void* p) {
 	uint16_t start = ((task*) p)->start/portTICK_RATE_MS;
 	uint16_t period = ((task*) p)->period/portTICK_RATE_MS;
 	uint16_t cpu = ((task*) p)->cpu/portTICK_RATE_MS;
-	int led = ((task*) p)->led;
+	uint8_t led3 = ((task*) p)->led3;
+	uint8_t led4 = ((task*) p)->led4;
 
 	// Wait first execution
 	TickType_t xlastWakeTime = DELAY_START_TIME_TICKS + start;
@@ -61,21 +68,20 @@ void vTask(void* p) {
 	while (1) {
 		// Wait for the next cycle.
 		vTaskDelayUntil(&xlastWakeTime, period);
-		BSP_LED_On(led);
-		burnCPU(cpu);
-		BSP_LED_Off(led);
+		burnCPU(cpu, led3, led4);
+		update_leds(GPIO_PIN_RESET, GPIO_PIN_RESET);
 	}
 }
 
-
 int main(void) {
 	interface_init();
+	uint8_t i, nb_task = sizeof(tasks)/sizeof(tasks[0]);
 
 	/* creation des threads */
 	if (!(pdPASS == xTaskCreate(vTaskCalibrateBurnCPU, "Calibration", 64, NULL, configMAX_PRIORITIES-1, NULL))) goto err;
-	if (!(pdPASS == xTaskCreate(vTask, tasks[0].name, 64, (void*)&tasks[0], configMAX_PRIORITIES-1-tasks[0].priority, NULL))) goto err;
-	if (!(pdPASS == xTaskCreate(vTask, tasks[1].name, 64, (void*)&tasks[1], configMAX_PRIORITIES-1-tasks[1].priority, NULL))) goto err;
-
+	for (i = 0; i < nb_task; i++) {
+		if (!(pdPASS == xTaskCreate(vTask, tasks[i].name, 64, (void* )&tasks[i], configMAX_PRIORITIES-1-tasks[i].priority, NULL))) goto err;
+	}
 	/* lancement du systeme */
 	vTaskStartScheduler();
 	err:              // en principe jamais atteint !
