@@ -84,7 +84,7 @@ int main(void) {
 	}
 	/* lancement du systeme */
 	vTaskStartScheduler();
-	err:              // en principe jamais atteint !
+err:              // en principe jamais atteint !
 	while (1);
 	return 0;
 }
