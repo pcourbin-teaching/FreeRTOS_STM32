@@ -61,17 +61,15 @@ void vTask(void* p) {
 	uint8_t led3 = ((task*) p)->led3;
 	uint8_t led4 = ((task*) p)->led4;
 
-	// Wait and do first execution
+	// Wait first execution
 	TickType_t xlastWakeTime = 0;
 	vTaskDelayUntil(&xlastWakeTime, DELAY_START_TIME_TICKS/portTICK_RATE_MS + start);
-	burnCPU(cpu, led3, led4);
-	update_leds(GPIO_PIN_RESET, GPIO_PIN_RESET);
 
 	while (1) {
-		// Wait for the next cycle.
-		vTaskDelayUntil(&xlastWakeTime, period);
 		burnCPU(cpu, led3, led4);
 		update_leds(GPIO_PIN_RESET, GPIO_PIN_RESET);
+		// Wait for the next cycle.
+		vTaskDelayUntil(&xlastWakeTime, period);
 	}
 }
 
